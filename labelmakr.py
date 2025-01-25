@@ -704,7 +704,10 @@ class transcriptEditor(ctk.CTkToplevel):
 
 		# file frame
 
-		self.file_list = [file[7:] for file in glob(str(P(CORPUS / '**/*.txt')))]
+		self.file_list = [
+	    		os.path.relpath(path, CORPUS)
+	    		for path in glob(str(P(CORPUS / '**/*.txt')), recursive=True)
+		]
 
 		# listbox
 		self.file_sel = CTkListbox(self, width=155,
