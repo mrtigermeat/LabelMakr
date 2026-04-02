@@ -155,3 +155,4 @@ cython_debug/
 # Our custom stuff
 corpus/
 assets/cfg.yaml
+SOFA/

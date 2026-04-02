@@ -1,5 +1,4 @@
 import sys
-sys.path.append('./SOFA')
 import pathlib
 import torch
 import yaml

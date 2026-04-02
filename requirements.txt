@@ -1,10 +1,26 @@
-openai-whisper
 customtkinter
-CTkListbox
-pygame
 ftfy
-gdown
+pygame
+Pillow
+CTkListbox
+CTkToolTip
+ez-localizr
+pyglet
+# torch - install manually
+# torchaudio - install manually
+# torchvision - install manually
+click
+lightning
+pandas
+textgrid
+einops
+librosa
+omegaconf
+hydra-core
+h5py
+matplotlib
 pypinyin
-pillow
-hydra-core==1.3.2
-omegaconf==2.3.0
+g2pk
+openai-whisper
+mytextgrid
+loguru

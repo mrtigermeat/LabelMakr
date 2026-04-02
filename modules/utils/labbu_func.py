@@ -1,4 +1,4 @@
-import labbu
+from modules.labbu import labbu
 
 class labbu_func:
 	def __init__(self, lang=None):

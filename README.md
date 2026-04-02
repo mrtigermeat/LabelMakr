@@ -10,6 +10,23 @@ LabelMakr is a GUI tool to help users easily generate SVS phoneme-level labels. 
 
 Please use the portable version for Windows found [here](https://github.com/spicytigermeat/LabelMakr/releases/tag/v030).
 
+## Manual Installation
+
+### Windows/macOS
+
+(work in progress)
+
+### Linux
+
+Tkinter distributions are weird on Linux, so you have to set up a conda environment in a specific way.
+
+```
+conda create -n labelmakr -y -c conda-forge "python=3.12.*" "tk[build=xft_*]"
+pip install torch torchvision torchaudio
+pip install -r requirements.txt
+python labelmakr.py
+```
+
 ## Community Contributions 🧑‍🤝‍🧑
 
 - Le guide d'utilisation en Français [peut-être trouvé ici](https://utaufrance.com/comment-utiliser-labelmakr/)! (Written by [Mim](https://twitter.com/mimsynth))

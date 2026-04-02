@@ -1,5 +1,16 @@
-import os, sys, re
-sys.path.append('.')
+from pathlib import Path
+import sys, os
+
+root_dir = Path(__file__).parent.parent.resolve()
+os.environ['PYTHONPATH'] = str(root_dir)
+sys.path.insert(0, str(root_dir))
+
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = 'hide'
+
+import warnings
+warnings.simplefilter("ignore", UserWarning)
+
+import re
 from glob import glob
 import logging
 
@@ -13,64 +24,59 @@ from PIL import Image
 from CTkListbox import *
 from CTkToolTip import *
 from ezlocalizr import ezlocalizr
-import pyglet
 
 # function stuff
 import yaml
-from pathlib import Path as P
 
 # LabelMakr specific functions
-import sofa_func # basically just a script with sofa inference
-import whisper_func # transcriber class is here
-from labbu_func import labbu_func # for label editing, coming in future update.
+#import modules.utils.sofa_func # basically just a script with sofa inference
+import modules.utils.whisper_func as whisper_func # transcriber class is here
+from modules.utils.labbu_func import labbu_func as labbu_func # for label editing, coming in future update.
+from modules.utils import (
+	get_logger,
+	load_config,
+	FontManager
+)
+from modules.utils.constants import (
+	ASSETS,
+	STRINGS,
+	CORPUS,
+	MODELS
+)
 
-#
-#	default global config stuffs
-#
-
-pyglet.options['win32_gdi_font'] = True
-
-DEBUG = True
-
-ASSETS = P('./assets')
-STRINGS = P('./strings')
-CORPUS = P('./corpus')
-MODELS = P('./models')
-
-ctk.set_default_color_theme(P(ASSETS / 'ctk_tgm_theme.json'))
+ctk.set_default_color_theme(Path(ASSETS / 'ctk_tgm_theme.json'))
 ctk.deactivate_automatic_dpi_awareness()
-
-# logger setup
-logger = logging.getLogger(__name__)
-logging.basicConfig(format="| %(levelname)s | %(message)s | %(asctime)s |",
-					datefmt="%H:%M:%S")
-if DEBUG:
-	logger.setLevel(logging.DEBUG)
-logger.setLevel(logging.INFO)
-
-assert ASSETS.exists(), logger.warning('Unable to locate assets folder.')
-assert STRINGS.exists(), logger.warning('Unable to locate strings folder.')
-assert CORPUS.exists(), os.mkdir(str(CORPUS))
-assert MODELS.exists(), logger.warning('No SOFA models installed in \'models\' folder.')
 
 def dummy():
 	print('teehee :3c')
 
 class LabelMakr(ctk.CTk):
-	def __init__(self):
+	def __init__(self, debug: bool):
 		super().__init__()
-		
-		# init global config
-		self.cfg = {
-			'disp_lang': 'en_US',
-			'matmul': True,
-			'whisper_model': 'medium',
-			'dark_mode': True,
-			'force_cpu': False
-		}
 
-		if P(ASSETS / 'cfg.yaml').exists():
-			with open(P(ASSETS / 'cfg.yaml'), 'r', encoding='utf-8') as c:
+		global logger
+		if debug:
+			logger = get_logger(level="DEBUG")
+		else:
+			logger = get_logger()
+		
+		# init global config, default if error
+		cfg_path = Path(ASSETS / 'cfg.yaml')
+		if cfg_path.exists():
+			self.cfg = load_config(cfg_path)
+			logger.debug(f'loaded config {str(cfg_path)}')
+		if self.cfg == {}:
+			self.cfg = {
+				'disp_lang': 'en_US',
+				'matmul': True,
+				'whisper_model': 'medium',
+				'dark_mode': True,
+				'force_cpu': False
+			}
+			logger.warning(f"Unable to open config {str(cfg_path)}, using default dictionary: \n {self.config}")
+
+		if Path(ASSETS / 'cfg.yaml').exists():
+			with open(Path(ASSETS / 'cfg.yaml'), 'r', encoding='utf-8') as c:
 				try:
 					self.cfg.update(yaml.safe_load(c))
 					c.close()
@@ -95,14 +101,14 @@ class LabelMakr(ctk.CTk):
 			g2p_model = None
 			g2p_cfg = None
 
-			if P(MODELS / model / 'g2p').exists():
+			if Path(MODELS / model / 'g2p').exists():
 				g2p_bool = True
-				g2p_model = P(MODELS / model / 'g2p/model.ptsd')
-				g2p_cfg = P(MODELS / model / 'g2p/cfg.yaml')
+				g2p_model = Path(MODELS / model / 'g2p/model.ptsd')
+				g2p_cfg = Path(MODELS / model / 'g2p/cfg.yaml')
 
 			self.sofa_models['models'][model] = {
-				'ckpt_path': P(MODELS / model / 'model.ckpt'),
-				'dict_path': P(MODELS / model / 'dict.txt'),
+				'ckpt_path': Path(MODELS / model / 'model.ckpt'),
+				'dict_path': Path(MODELS / model / 'dict.txt'),
 				'g2p': g2p_bool,
 				'g2p_model': g2p_model,
 				'g2p_cfg': g2p_cfg
@@ -113,6 +119,8 @@ class LabelMakr(ctk.CTk):
 							string_path=STRINGS,
 							default_lang='en_US')
 
+		self.FontManager = FontManager()
+
 		# init labbu for label fixes
 		self.labu = labbu_func(lang='default')
 
@@ -120,29 +128,7 @@ class LabelMakr(ctk.CTk):
 		self.transcribe_lang_op = ['EN', 'JP', 'ZH', 'FR', 'KO']
 		self.transcribe_lang_op.sort()
 
-		# font stuff
-		pyglet.font.add_file(str(P(ASSETS / 'PixelOperator.ttf')))
-		pyglet.font.add_file(str(P(ASSETS / 'PixelMplus10-Regular.ttf')))
-		pyglet.font.add_file(str(P(ASSETS / 'neodgm.ttf')))
-		pyglet.font.add_file(str(P(ASSETS / 'WenQuanYi.Bitmap.Song.16px.ttf')))
-
-		self.en_font = 'Pixel Operator'
-		self.jp_font = 'PixelMPlus10'
-		self.ko_font = 'NeoDunggeunmo'
-		self.zh_font = 'WenQuanYi Bitmap Song 16px'
-
-		if self.clang.get() in ['jp_JP']:
-			self.font = ctk.CTkFont(family=self.jp_font, size=16)
-			self.font_sm = ctk.CTkFont(family=self.jp_font, size=14)
-		elif self.clang.get() in ['ko_KO']:
-			self.font = ctk.CTkFont(family=self.ko_font, size=16)
-			self.font_sm = ctk.CTkFont(family=self.ko_font, size=14)
-		elif self.clang.get() in ['zh_ZH']:
-			self.font = ctk.CTkFont(family=self.zh_font, size=18)
-			self.font_sm = ctk.CTkFont(family=self.zh_font, size=16)
-		else:
-			self.font = ctk.CTkFont(family=self.en_font, size=16)
-			self.font_sm = ctk.CTkFont(family=self.en_font, size=14)
+		self.font, self.font_sm = self.FontManager.load_font()
 
 		if self.dark_mode.get():
 			ctk.set_appearance_mode("dark")
@@ -166,25 +152,25 @@ class LabelMakr(ctk.CTk):
 
 		# apparently trying to load an icon in linux breaks shit so. lawl.
 		if sys.platform == 'win32':
-			if P(ASSETS / 'tgm.ico').exists():
-				self.wm_iconbitmap(P(ASSETS / 'tgm.ico'))
+			if Path(ASSETS / 'tgm.ico').exists():
+				self.wm_iconbitmap(Path(ASSETS / 'tgm.ico'))
 
 		#
 		#	GUI Image Initialization
 		#
 
-		if P(ASSETS / 'labelmakr.png').exists():
-			self.labelmakr_logo = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'labelmakr.png')), size=(300,30))
-		if P(ASSETS / 'folder.png').exists():
-			self.folder_ico = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'folder.png')))
-		if P(ASSETS / 'trns.png').exists():
-			self.trns_ico = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'trns.png')))
-		if P(ASSETS / 'trns_edit.png').exists():
-			self.trns_edit_ico = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'trns_edit.png')))
-		if P(ASSETS / 'align.png').exists():
-			self.align_ico = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'align.png')))
-		if P(ASSETS / 'fix.png').exists():	
-			self.fix_ico = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'fix.png')))
+		if Path(ASSETS / 'labelmakr.png').exists():
+			self.labelmakr_logo = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'labelmakr.png')), size=(300,30))
+		if Path(ASSETS / 'folder.png').exists():
+			self.folder_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'folder.png')))
+		if Path(ASSETS / 'trns.png').exists():
+			self.trns_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'trns.png')))
+		if Path(ASSETS / 'trns_edit.png').exists():
+			self.trns_edit_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'trns_edit.png')))
+		if Path(ASSETS / 'align.png').exists():
+			self.align_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'align.png')))
+		if Path(ASSETS / 'fix.png').exists():	
+			self.fix_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'fix.png')))
 
 		#
 		#	TITLE LABEL
@@ -501,7 +487,7 @@ class LabelMakr(ctk.CTk):
 	def refresh(self, choice):
 		# Better option for updating the display language tbh.
 		self.cfg['disp_lang'] = choice
-		with open(P(ASSETS / 'cfg.yaml'), 'w', encoding='utf-8') as f:
+		with open(Path(ASSETS / 'cfg.yaml'), 'w', encoding='utf-8') as f:
 			yaml.dump(self.cfg, f, default_flow_style=False)
 			f.close()
 		self.L.load_lang(choice)
@@ -522,7 +508,7 @@ class LabelMakr(ctk.CTk):
 	def update_matmul(self):
 		self.cfg['matmul'] = self.matmul_var.get()
 
-		with open(P(ASSETS / 'cfg.yaml'), 'w', encoding='utf-8') as f:
+		with open(Path(ASSETS / 'cfg.yaml'), 'w', encoding='utf-8') as f:
 			yaml.dump(self.cfg, f, default_flow_style=False)
 			f.close()
 
@@ -563,7 +549,7 @@ class LabelMakr(ctk.CTk):
 			Open a folder in file explorer
 			If the folder doesn't exist, create it.
 			"""
-			folder = P(foldername)
+			folder = Path(foldername)
 			#create the folder if it doesn't exist
 			if(not folder.is_dir()):
 				folder.mkdir()
@@ -572,7 +558,7 @@ class LabelMakr(ctk.CTk):
 	def update_wh_model(self):
 		self.inf_wh_model.set(self.set_wh_cmbo.get())
 		self.cfg['whisper_model'] = self.set_wh_cmbo.get()
-		with open(P(ASSETS / 'cfg.yaml'), 'w', encoding='utf-8') as f:
+		with open(Path(ASSETS / 'cfg.yaml'), 'w', encoding='utf-8') as f:
 			yaml.dump(self.cfg, f, default_flow_style=False)
 			f.close()
 		logger.info(f"Set Whisper Model to {self.set_wh_cmbo.get()}")
@@ -586,10 +572,10 @@ class LabelMakr(ctk.CTk):
 	def run_label_fix(self):
 		# uses labbu to fix the files
 
-		corpus_list = [name for name in os.listdir(str(P(CORPUS))) if os.path.isdir(str(P(CORPUS / name)))]
+		corpus_list = [name for name in os.listdir(str(Path(CORPUS))) if os.path.isdir(str(Path(CORPUS / name)))]
 
 		for singer in corpus_list:
-			for file in glob(str(P(f'./corpus/{singer}/labels/*.lab')), recursive=True):
+			for file in glob(str(Path(f'./corpus/{singer}/labels/*.lab')), recursive=True):
 				self.labu.load(file)
 
 				if self.dxer_cb.get():
@@ -621,7 +607,7 @@ class LabelMakr(ctk.CTk):
 
 		self.cfg['dark_mode'] = self.dark_mode
 
-		with open(P(ASSETS / 'cfg.yaml'), 'w', encoding='utf-8') as f:
+		with open(Path(ASSETS / 'cfg.yaml'), 'w', encoding='utf-8') as f:
 			yaml.dump(self.cfg, f, default_flow_style=False)
 			f.close()
 
@@ -655,9 +641,9 @@ class transcriptEditor(ctk.CTkToplevel):
 		self.minsize(width=710, height=361)
 
 		if sys.platform == 'win32':
-			if P(ASSETS / 'tgm.icon').exists():
+			if Path(ASSETS / 'tgm.icon').exists():
 				self.wm_iconbitmap(ASSETS / 'tgm.ico')
-			self.after(200, lambda: self.iconbitmap(P('assets/tgm.ico')))
+			self.after(200, lambda: self.iconbitmap(Path('assets/tgm.ico')))
 
 		self.grid_columnconfigure((0, 1), weight=1)
 		self.grid_rowconfigure(0, weight=0)
@@ -667,18 +653,18 @@ class transcriptEditor(ctk.CTkToplevel):
 		#	Image variable initilization
 		#
 
-		if P(ASSETS / 'labelmakr.png').exists():
-			self.labelmakr_logo = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'labelmakr.png')), size=(300,30))
-		if P(ASSETS / 'play.png').exists():
-			self.play_ico = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'play.png')))
-		if P(ASSETS / 'pause.png').exists():
-			self.pause_ico = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'pause.png')))
-		if P(ASSETS / 'stop.png').exists():
-			self.stop_ico = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'stop.png')))
-		if P(ASSETS / 'save.png').exists():
-			self.save_ico = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'save.png')))
-		if P(ASSETS / 'fastfw.png').exists():
-			self.next_ico = ctk.CTkImage(light_image=Image.open(P(ASSETS / 'fastfw.png')))
+		if Path(ASSETS / 'labelmakr.png').exists():
+			self.labelmakr_logo = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'labelmakr.png')), size=(300,30))
+		if Path(ASSETS / 'play.png').exists():
+			self.play_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'play.png')))
+		if Path(ASSETS / 'pause.png').exists():
+			self.pause_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'pause.png')))
+		if Path(ASSETS / 'stop.png').exists():
+			self.stop_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'stop.png')))
+		if Path(ASSETS / 'save.png').exists():
+			self.save_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'save.png')))
+		if Path(ASSETS / 'fastfw.png').exists():
+			self.next_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'fastfw.png')))
 
 		#
 		#	Image at the top
@@ -706,7 +692,7 @@ class transcriptEditor(ctk.CTkToplevel):
 
 		self.file_list = [
 	    		os.path.relpath(path, CORPUS)
-	    		for path in glob(str(P(CORPUS / '**/*.txt')), recursive=True)
+	    		for path in glob(str(Path(CORPUS / '**/*.txt')), recursive=True)
 		]
 
 		# listbox
@@ -782,11 +768,11 @@ class transcriptEditor(ctk.CTkToplevel):
 		self.text_box.delete("0.0", tk.END)
 
 		# load audio
-		sound_name = CORPUS / P(self.file_sel.get()).resolve()
+		sound_name = CORPUS / Path(self.file_sel.get()).resolve()
 
-		self.player.load(P(sound_name).with_suffix('.wav'))
+		self.player.load(Path(sound_name).with_suffix('.wav'))
 
-		open_path = CORPUS / P(self.file_sel.get(self.file_sel.curselection()))
+		open_path = CORPUS / Path(self.file_sel.get(self.file_sel.curselection()))
 
 		with open(open_path, 'r', encoding='utf-8') as lbl:
 			self.text_box.insert("0.0", lbl.read())
@@ -794,7 +780,7 @@ class transcriptEditor(ctk.CTkToplevel):
 
 	def save_label(self):
 
-		save_path = P(CORPUS / self.file_sel.get(self.file_sel.curselection()))
+		save_path = Path(CORPUS / self.file_sel.get(self.file_sel.curselection()))
 		
 		try:
 			with open(save_path, 'w+', encoding='utf-8') as lbl:
@@ -821,7 +807,7 @@ class transcriptEditor(ctk.CTkToplevel):
 			x = threading.Thread(target=self.player.play(), args=())
 			x.start()
 		except:
-			logger.warning(f"Unable to play audio file {P(sound_name).with_suffix('.wav')}")
+			logger.warning(f"Unable to play audio file {Path(sound_name).with_suffix('.wav')}")
 
 	def pause_audio(self):
 		try:
@@ -874,9 +860,15 @@ class mixer_wrapper:
 	def busy(self) -> bool:
 		return mixer.music.get_busy()
 
-def main():
-	app = LabelMakr()
+def main(debug: bool):
+	app = LabelMakr(debug)
 	app.mainloop()
 
 if __name__ == "__main__":
-	main()
+	import click
+	
+	@click.command(help='LabelMakr - An intuitive GUI tool to assist in labelling SVS datasets.')
+	@click.option('--debug', '-d', is_flag=True, type=bool, default=False, help='Display debugging messages.')
+	def main_wrapper(debug: bool):
+		main(debug)
+	main_wrapper()
