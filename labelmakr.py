@@ -19,7 +19,6 @@ import customtkinter as ctk
 import tkinter as tk
 from ftfy import fix_text as fxy # unicode text all around fix
 import threading
-from pygame import mixer # for playing audio
 from PIL import Image
 from CTkListbox import *
 from CTkToolTip import *
@@ -43,6 +42,7 @@ from modules.utils.constants import (
 	CORPUS,
 	MODELS
 )
+from modules.utils.audio import mixer_wrapper
 
 ctk.set_default_color_theme(Path(ASSETS / 'ctk_tgm_theme.json'))
 ctk.deactivate_automatic_dpi_awareness()
@@ -53,6 +53,8 @@ def dummy():
 class LabelMakr(ctk.CTk):
 	def __init__(self, debug: bool):
 		super().__init__()
+
+		self.debug = debug
 
 		global logger
 		if debug:
@@ -144,10 +146,9 @@ class LabelMakr(ctk.CTk):
 
 		# window config
 		self.title(self.L('app_ttl'))
-		self.geometry(f"{420}x{380}")
-		self.resizable(height=False, width=True)
-		self.minsize(width=405, height=380)
-		self.maxsize(width=600, height=380)
+		self.geometry(f"{1050}x{550}")
+		self.resizable(height=True, width=True)
+		self.minsize(width=1050, height=550)
 		self.tt_delay = 1
 
 		# apparently trying to load an icon in linux breaks shit so. lawl.
@@ -171,6 +172,18 @@ class LabelMakr(ctk.CTk):
 			self.align_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'align.png')))
 		if Path(ASSETS / 'fix.png').exists():	
 			self.fix_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'fix.png')))
+		if Path(ASSETS / 'play.png').exists():
+			self.play_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'play.png')))
+		if Path(ASSETS / 'pause.png').exists():
+			self.pause_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'pause.png')))
+		if Path(ASSETS / 'stop.png').exists():
+			self.stop_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'stop.png')))
+		if Path(ASSETS / 'save.png').exists():
+			self.save_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'save.png')))
+		if Path(ASSETS / 'fastfw.png').exists():
+			self.next_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'fastfw.png')))
+
+		self.corpus_path = ctk.StringVar(value="./corpus")
 
 		#
 		#	TITLE LABEL
@@ -179,39 +192,50 @@ class LabelMakr(ctk.CTk):
 		self.grid_columnconfigure(0, weight=1)
 		self.grid_columnconfigure(1, weight=1)
 		self.grid_rowconfigure(0, weight=1)
+		self.grid_rowconfigure(1, weight=5)
 
 		# logo at the top
 		self.title_lbl = ctk.CTkLabel(self, image=self.labelmakr_logo, text='')
-		self.title_lbl.grid(padx=5, pady=(10, 5), sticky=tk.EW, columnspan=2)
+		self.title_lbl.grid(row=0, column=0, padx=5, pady=(10, 5), sticky=tk.NW, columnspan=2)
 
 		# whisper variables
-		self.trans_lang_choice = ctk.StringVar(value='EN') 
+		self.trans_lang_choice = ctk.StringVar(value='EN')
 
-		# what lang are you transcribing?
-		self.what_lang = ctk.CTkLabel(self,
-									 text=self.L('lang_choice'),
-									 font=self.font)
-		self.what_lang.grid(row=1, column=0, padx=5, pady=(5, 0), sticky=tk.NE)
+		# CORPUS BAR AT DA TOP
 
-		self.lang_cmbo = ctk.CTkComboBox(self,
-										 values=self.transcribe_lang_op,
-										 variable=self.trans_lang_choice,
-										 command=lambda x: self.change_transcription_language(),
+		self.corpus_label = ctk.CTkLabel(self,
+										 text='Corpus Path' + ":", #NEEDSSTRING
+										 font=self.font)
+		self.corpus_label.grid(row=0, column=1, padx=5, pady=(15, 0), sticky=tk.NE)
+		self.corpus_label_tt = CTkToolTip(self.corpus_label, delay=self.tt_delay, message='Path to the corpus you wish to process.', font=self.font) #NEEDSSTRING
+
+		self.corpus_entry = ctk.CTkEntry(self,
+										 corner_radius=5,
 										 font=self.font,
-										 dropdown_font=self.font,
-										 justify='center')
-		self.lang_cmbo.set('EN')
-		self.lang_cmbo.grid(row=1, column=1, padx=5, pady=5, sticky=tk.NW)
-		self.lang_cmbo_tt = CTkToolTip(self.what_lang, delay=self.tt_delay, message=self.L('lang_choice_tt'), font=self.font)
+										 state='normal',
+										 textvariable=self.corpus_path,
+										 width=350)
+		self.corpus_entry.grid(row=0, column=2, padx=(5, 0), pady=(15, 0), sticky=tk.NE)
+
+		def browse_corpus():
+			folder_path = tk.filedialog.askdirectory()
+			if folder_path:
+				self.corpus_path.set(folder_path)
+
+		self.corpus_browse = ctk.CTkButton(self,
+										   text='Browse', #NEEDSSTRING
+										   command=lambda: browse_corpus(),
+										   compound=tk.LEFT,
+										   font=self.font,
+										   width=20)
+		self.corpus_browse.grid(row=0, column=3, padx=(0, 15), pady=(15, 0), sticky=tk.NE)
 
 		#
 		#	Unnecessarily long tab configuration
 		#
 
-		# commented lines are for future features
-
 		self.tabs = ctk.CTkTabview(self)
-		self.tabs.grid(padx=5, pady=(0, 5), sticky=tk.EW, columnspan=2)
+		self.tabs.grid(row=1, column=0, padx=5, pady=(0, 5), sticky=tk.NSEW, columnspan=4)
 
 		self.tab_ttl_1 = self.L('tab_ttl_1')
 		self.tab_ttl_2 = self.L('tab_ttl_2')
@@ -228,48 +252,173 @@ class LabelMakr(ctk.CTk):
 
 		# copyright label at the bottom of the screen
 		self.credits = ctk.CTkLabel(self, 
-									text=fxy('© tigermeat 2023-2024 | v030'), 
+									text=fxy('© tigermeat 2023-2026 | v2.0.0'), 
 									text_color="gray50",
 									font=self.font)
-		self.credits.grid(padx=5, pady=(0, 5), sticky=tk.EW, columnspan=2)
+		self.credits.grid(padx=5, pady=(0, 5), sticky=tk.EW, columnspan=4)
 
 		#
 		#	Transcription Tab
 		#
 
-		self.tabs.tab(self.tab_ttl_1).grid_columnconfigure(0, weight=1)
+		self.tabs.tab(self.tab_ttl_1).grid_columnconfigure((0, 2), weight=0)
 		self.tabs.tab(self.tab_ttl_1).grid_columnconfigure(1, weight=1)
-		self.tabs.tab(self.tab_ttl_1).grid_rowconfigure((0, 1, 2), weight=3)
+		self.tabs.tab(self.tab_ttl_1).grid_rowconfigure(0, weight=1)
+		self.tabs.tab(self.tab_ttl_1).grid_rowconfigure(1, weight=0)
 
-		# open corpus button
-		self.corp_btn = ctk.CTkButton(self.tabs.tab(self.tab_ttl_1),
-									  text=self.L('corpus_folder'),
-									  command=lambda: self.startfolder('corpus'),
-									  image=self.folder_ico,
-									  compound=tk.LEFT,
-									  font=self.font)
-		self.corp_btn.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky=tk.NSEW)
-		self.corp_btn_tt = CTkToolTip(self.corp_btn, delay=self.tt_delay, message=self.L('corpus_folder_tt'), font=self.font)
+		# folder box
+		self.trans_file_select = CTkListbox(self.tabs.tab(self.tab_ttl_1),
+								   			multiple_selection=False,
+								   			font=self.font)
+		self.trans_file_select.bind("<<ListboxSelect>>", lambda: dummy())
 
+		# placing all label files into the thingymajig.
+		'''
+		self.file_list_index = {}
+		for i, file in enumerate(self.file_list):
+			self.file_sel.insert(i, file)
+			self.file_list_index[file] = i
+		'''
+
+		if self.debug:
+			for i, file in enumerate(["strawberry.wav", "blueberry.wav", "which_is_it.wav"]):
+				self.trans_file_select.insert(i, file)
+			logger.debug("Displaying text audio files.")
+		
+		self.trans_file_select.grid(row=0, column=0, rowspan=999, padx=5, pady=5, sticky=tk.NSEW)
+
+		self.editor_frame = ctk.CTkFrame(self.tabs.tab(self.tab_ttl_1))
+		self.editor_frame.grid(row=0, column=1, sticky=tk.EW)
+
+		self.editor_frame.grid_rowconfigure(0, weight=0)
+		self.editor_frame.grid_rowconfigure((1, 2), weight=3)
+		self.editor_frame.grid_columnconfigure(0, weight=0)
+
+		self.text_box = ctk.CTkTextbox(self.editor_frame, 
+									   wrap='word',
+									   activate_scrollbars=True,
+									   font=self.font)
+		self.text_box.grid(row=0, column=0, sticky=tk.NSEW)
+
+		if self.debug:
+			self.text_box.insert(tk.END, "it's a miraculous encounter, encounter, i'm going to faint... ")
+			self.text_box.insert(tk.END, "it's a miraculous encounter, i do not let you so oh it's a dream! ")
+			self.text_box.insert(tk.END, "Why do i feel this way? Why do you do it in this way? ")
+			self.text_box.insert(tk.END, "Tick. Ticktick. Tick.")
+			logger.debug("Displaying test lyrics.")
+
+
+		# AUDIO TIMELINE
+
+		self.bottom_box = ctk.CTkFrame(self.editor_frame, fg_color='transparent')
+		self.bottom_box.grid(row=1, column=0, sticky=tk.S)
+
+		self.audio_time = ctk.IntVar(value=0)
+
+		self.time_slider_frame = ctk.CTkFrame(self.bottom_box, fg_color='transparent')
+		self.time_slider_frame.grid(row=1, column=0, sticky=tk.S)
+
+		self.time_slider_frame.grid_rowconfigure(0, weight=3)
+		self.time_slider_frame.grid_rowconfigure(1, weight=0)
+
+		self.time_slider = ctk.CTkSlider(self.time_slider_frame,
+										 from_=0,
+										 to=100,
+										 variable=self.audio_time,
+										 orientation='horizontal')
+		self.time_slider.grid(row=0, column=0, padx=10, columnspan=2, sticky=tk.NSEW)
+
+		label_text_color = 'gray45'
+
+		self.audio_timeline = ctk.CTkLabel(self.time_slider_frame,
+										 text='Audio Timeline', #NEEDSSTRING
+										 font=self.font_sm,
+										 text_color=label_text_color)
+		self.audio_timeline.grid(row=1, column=0, padx=(15, 0), sticky=tk.NW)
+
+		self.duration_label = ctk.CTkLabel(self.time_slider_frame,
+										   text='0:00 / 0:37', #NEEDSSTRING
+										   font=self.font_sm,
+										   text_color=label_text_color)
+		self.duration_label.grid(row=1, column=1, padx=(0, 15), sticky=tk.SE)
+
+		self.button_frame = ctk.CTkFrame(self.bottom_box, height=40)
+		self.button_frame.grid(row=2, column=0, sticky=tk.S)
+
+		self.button_frame.grid_rowconfigure(0, weight=1)
+
+		trans_button_width = 80
+
+		# play button
+		self.play_audio_btn = ctk.CTkButton(self.button_frame, 
+											image=self.play_ico,
+											text='',
+											width=trans_button_width,
+											command=lambda: self.play_audio())
+		self.play_audio_btn.grid(row=0, column=0, padx=5, pady=5, sticky=tk.NSEW)
+		self.play_audio_btn_tt = CTkToolTip(self.play_audio_btn, delay=self.tt_delay, message=self.L('play'), font=self.font)
+
+		# pause/unpause button
+		self.pause_audio_btn = ctk.CTkButton(self.button_frame, 
+											image=self.pause_ico,
+											text='', 
+											width=trans_button_width, 
+											command=lambda: self.pause_audio())
+		self.pause_audio_btn.grid(row=0, column=1, padx=5, pady=5, sticky=tk.NSEW)
+		self.pause_audio_btn_tt = CTkToolTip(self.pause_audio_btn, delay=self.tt_delay, message=self.L('pause'), font=self.font)
+
+		# stop button
+		self.stop_audio_btn = ctk.CTkButton(self.button_frame, 
+											image=self.stop_ico,
+											text='',
+											width=trans_button_width,
+											command=lambda: self.stop_audio())
+		self.stop_audio_btn.grid(row=0, column=2, padx=5, pady=5, sticky=tk.NSEW)
+		self.stop_audio_btn_tt = CTkToolTip(self.stop_audio_btn, delay=self.tt_delay, message=self.L('stop'), font=self.font)
+
+		# save button
+		self.save_lbl_btn = ctk.CTkButton(self.button_frame,
+										  image=self.save_ico,
+										  text='',
+										  width=trans_button_width,
+										  command=lambda: self.save_label())
+		self.save_lbl_btn.grid(row=0, column=3, padx=5, pady=5, sticky=tk.NSEW)
+		self.save_lbl_btn_tt = CTkToolTip(self.save_lbl_btn, delay=self.tt_delay, message=self.L('save'), font=self.font)
+
+		# save & next button
+		self.save_next_btn = ctk.CTkButton(self.button_frame, 
+										  image=self.next_ico,
+										  text='',
+										  width=trans_button_width,
+										  command=lambda: self.save_and_next())
+		self.save_next_btn.grid(row=0, column=4, padx=5, pady=5, sticky=tk.NSEW)
+		self.save_next_btn_tt = CTkToolTip(self.save_next_btn, delay=self.tt_delay, message=self.L('next'), font=self.font)
+
+		self.trans_option_frame = ctk.CTkFrame(self.tabs.tab(self.tab_ttl_1))
+		self.trans_option_frame.grid(row=0, column=2, padx=5, pady=5, rowspan=999, sticky=tk.NSEW)
+
+		trans_button_height = 50
 		# transcribe button
-		self.trns_btn = ctk.CTkButton(self.tabs.tab(self.tab_ttl_1),
+		self.trns_btn = ctk.CTkButton(self.trans_option_frame,
 									  text=self.L('run_trns'),
 									  command=lambda: self.run_transcriber(),
 									  image=self.trns_ico,
 									  compound=tk.LEFT,
-									  font=self.font)
-		self.trns_btn.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky=tk.NSEW)
+									  font=self.font,
+									  height=trans_button_height)
+		self.trns_btn.grid(row=0, column=0, padx=5, pady=5, sticky=tk.EW)
 		self.trns_btn_tt = CTkToolTip(self.trns_btn, delay=self.tt_delay, message=self.L('run_trns_tt'), font=self.font)
 
 		# transcription editor button
-		self.trns_edit = ctk.CTkButton(self.tabs.tab(self.tab_ttl_1),
-									   text=self.L('transcription_editor'),
-									   command=lambda: self.open_transcription_editor(),
-									   image=self.trns_edit_ico,
-									   compound=tk.LEFT,
-									   font=self.font)
-		self.trns_edit.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky=tk.NSEW)
-		self.trns_edit_tt = CTkToolTip(self.trns_edit, delay=self.tt_delay, message=self.L('transcription_editor_tt'), font=self.font)
+		self.batch_trans_btn = ctk.CTkButton(self.trans_option_frame,
+									         text='Transcribe All', #NEEDSSTRING
+									         command=lambda: self.open_transcription_editor(),
+									   		 image=self.trns_edit_ico,
+									         compound=tk.LEFT,
+									         font=self.font,
+											 height=trans_button_height)
+		self.batch_trans_btn.grid(row=1, column=0, padx=5, pady=5, sticky=tk.EW)
+		self.batch_trans_btn_tt = CTkToolTip(self.batch_trans_btn, delay=self.tt_delay, message=self.L('transcription_editor_tt'), font=self.font) #NEEDSSTRING
 
 		#
 		#	Alignment Tab GUI Codes
@@ -713,56 +862,7 @@ class transcriptEditor(ctk.CTkToplevel):
 		#	BUTTON FRAME
 		#
 
-		self.button_frame = ctk.CTkFrame(self, height=50)
-		self.button_frame.grid(row=2, column=0, padx=(5, 0), pady=5, sticky=tk.NSEW)
-
-		self.button_frame.grid_rowconfigure(0, weight=3)
-
-		# play button
-		self.play_audio_btn = ctk.CTkButton(self.button_frame, 
-											image=self.play_ico,
-											text='',
-											width=91,
-											command=lambda: self.play_audio())
-		self.play_audio_btn.grid(row=0, column=0, padx=5, pady=5, sticky=tk.NSEW)
-		self.play_audio_btn_tt = CTkToolTip(self.play_audio_btn, delay=self.tt_delay, message=self.L('play'), font=self.font)
-
-		# pause/unpause button
-		self.pause_audio_btn = ctk.CTkButton(self.button_frame, 
-											image=self.pause_ico,
-											text='', 
-											width=91, 
-											command=lambda: self.pause_audio())
-		self.pause_audio_btn.grid(row=0, column=1, padx=5, pady=5, sticky=tk.NSEW)
-		self.pause_audio_btn_tt = CTkToolTip(self.pause_audio_btn, delay=self.tt_delay, message=self.L('pause'), font=self.font)
-
-		# stop button
-		self.stop_audio_btn = ctk.CTkButton(self.button_frame, 
-											image=self.stop_ico,
-											text='',
-											width=91,
-											command=lambda: self.stop_audio())
-		self.stop_audio_btn.grid(row=0, column=2, padx=5, pady=5, sticky=tk.NSEW)
-		self.stop_audio_btn_tt = CTkToolTip(self.stop_audio_btn, delay=self.tt_delay, message=self.L('stop'), font=self.font)
-
-		# save button
-		self.save_lbl_btn = ctk.CTkButton(self.button_frame,
-										  image=self.save_ico,
-										  text='',
-										  width=91,
-										  command=lambda: self.save_label())
-		self.save_lbl_btn.grid(row=0, column=3, padx=5, pady=5, sticky=tk.NSEW)
-		self.save_lbl_btn_tt = CTkToolTip(self.save_lbl_btn, delay=self.tt_delay, message=self.L('save'), font=self.font)
-
-		# save & next button
-		self.save_next_btn = ctk.CTkButton(self.button_frame, 
-										  image=self.next_ico,
-										  text='',
-										  width=91,
-										  command=lambda: self.save_and_next())
-		self.save_next_btn.grid(row=0, column=4, padx=5, pady=5, sticky=tk.NSEW)
-		self.save_next_btn_tt = CTkToolTip(self.save_next_btn, delay=self.tt_delay, message=self.L('next'), font=self.font)
-
+		
 	def load_label(self):
 
 		self.text_box.delete("0.0", tk.END)
@@ -825,40 +925,6 @@ class transcriptEditor(ctk.CTkToplevel):
 			self.pause_audio_btn.configure(image=self.pause_ico)
 		except:
 			logger.warning('Cannot stop music. Run for your life.')
-
-class mixer_wrapper:
-	def __init__(self):
-		'''
-		Silly class for forcing pygame mixer to work better lol
-		'''
-		self.is_paused = False
-		self.hit_play = False
-		mixer.init()
-
-	def load(self, audio):
-		mixer.music.load(audio)
-		self.hit_play = False
-
-	def play(self):
-		mixer.music.play()
-		self.hit_play = True
-
-	def pause(self):
-		if self.hit_play:
-			if self.is_paused:
-				mixer.music.unpause()
-				self.is_paused = False
-			elif not self.is_paused:
-				mixer.music.pause()
-				self.is_paused = True
-
-	def stop(self):
-		mixer.music.stop()
-		self.hit_play = False
-
-	@property
-	def busy(self) -> bool:
-		return mixer.music.get_busy()
 
 def main(debug: bool):
 	app = LabelMakr(debug)

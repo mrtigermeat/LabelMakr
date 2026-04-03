@@ -75,12 +75,12 @@
   "CTkSlider": {
     "corner_radius": 1000,
     "button_corner_radius": 1000,
-    "border_width": 6,
+    "border_width": 0,
     "button_length": 0,
-    "fg_color": ["#939BA2", "#4A4D50"],
-    "progress_color": ["gray40", "#AAB0B5"],
-    "button_color": ["#3a7ebf", "#1f538d"],
-    "button_hover_color": ["#325882", "#14375e"]
+    "fg_color": ["gray85", "gray16"],
+    "progress_color": ["gray65", "gray28"],
+    "button_color": ["DarkGoldenrod3", "DarkGoldenrod3"],
+    "button_hover_color": ["DarkGoldenrod4", "DarkGoldenrod4"]
   },
   "CTkOptionMenu": {
     "corner_radius": 6,

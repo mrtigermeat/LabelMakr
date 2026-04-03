@@ -5,6 +5,7 @@ import pyglet
 from pathlib import Path
 from loguru import logger
 import customtkinter as ctk
+from tkinter import filedialog
 
 from modules.utils.constants import ASSETS
 
@@ -28,7 +29,6 @@ def load_config(path: Path) -> dict:
             except yaml.YAMLError as e:
                 logger.error(f'Unable to open file {path}: \n {e} \n\n')
                 return output
-                
 
 class FontManager:
     def __init__(self):
@@ -59,3 +59,4 @@ class FontManager:
                         ctk.CTkFont(family='monospace', size=10))
         except Exception as e:
             logger.error(f'Unable to load font for lang {lang}:\n\n {e} \n\n')
+
