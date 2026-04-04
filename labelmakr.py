@@ -6,6 +6,7 @@ os.environ['PYTHONPATH'] = str(root_dir)
 sys.path.insert(0, str(root_dir))
 
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = 'hide'
+os.environ['LM_MODE'] = 'INFO' #doing this to keep logger consistent
 
 import warnings
 warnings.simplefilter("ignore", UserWarning)
@@ -34,16 +35,17 @@ from modules.utils.labbu_func import labbu_func as labbu_func # for label editin
 from modules.utils import (
 	get_logger,
 	load_config,
-	get_os,
-	FontManager
+	get_os
 )
 from modules.utils.constants import (
 	ASSETS,
 	STRINGS,
 	CORPUS,
-	MODELS
+	MODELS,
+	TEMPDIR
 )
 from modules.utils.audio import mixer_wrapper
+from modules.utils.fontmanager import FontManager
 
 OS = get_os()
 
@@ -58,20 +60,16 @@ class LabelMakr(ctk.CTk):
 		super().__init__()
 
 		self.debug = debug
-
+		
 		global logger
-		if debug:
-			logger = get_logger(level="DEBUG")
-		else:
-			logger = get_logger()
+		logger = get_logger(level=os.environ['LM_MODE'])
 
 		os_ok = OS in ['linux', 'osx', 'win32']
 		assert OS in ['linux', 'osx', 'win32']
 		if debug:
 			logger.success(f'{OS} is supported by LabelMakr2.')
-
 		
-		# init global config, default if error
+		# GUI config
 		cfg_path = Path(ASSETS / 'cfg.yaml')
 		if cfg_path.exists():
 			self.cfg = load_config(cfg_path)
@@ -131,35 +129,33 @@ class LabelMakr(ctk.CTk):
 							default_lang='en_US')
 
 		self.FontManager = FontManager()
+		self.font, self.font_sm = self.FontManager.load_font()
+		logger.debug(f'Current font loaded is {self.font.cget('family')}')
 
 		# init labbu for label fixes
-		self.labu = labbu_func(lang='default')
+		self.labu = labbu_func(lang='default') #FIX THIS
 
-		self.wh_models = ['tiny', 'base', 'small', 'medium', 'large']
-		self.transcribe_lang_op = ['EN', 'JP', 'ZH', 'FR', 'KO']
-		self.transcribe_lang_op.sort()
-
-		self.font, self.font_sm = self.FontManager.load_font()
+		self.wh_models = ['tiny', 'base', 'small', 'medium', 'large'] #FIX THIS
+		self.transcribe_lang_op = ['EN', 'JP', 'ZH', 'FR', 'KO'] #FIX THIS
+		self.transcribe_lang_op.sort() #FIX THIS
 
 		if self.dark_mode.get():
 			ctk.set_appearance_mode("dark")
 		else:
 			ctk.set_appearance_mode("light")
 
-		logger.info('Successfully initialized LabelMakr.')
+		logger.success('Successfully initialized LabelMakr.')
 
-		self.tr_editor = None
 		self.main_window()
 		
 	def main_window(self):
 
 		# window config
 		self.title(self.L('app_ttl'))
-		#self.wm_class('labelmakr', self.L('app_ttl'))
+
 		self.geometry(f"{1150}x{600}")
 		self.resizable(height=True, width=True)
 		self.minsize(width=1150, height=600)
-		self.tt_delay = 1			
 
 		#
 		#	GUI Image Initialization
@@ -198,8 +194,11 @@ class LabelMakr(ctk.CTk):
 					self.iconphoto(True, self.icontk)
 
 		# Variables
+		self.tt_delay = 1 #tooltip delay
 		self.corpus_path = ctk.StringVar(value="./corpus")
 		self.trans_lang_choice = ctk.StringVar(value='EN')
+		self.audio_time = ctk.IntVar(value=0)
+		self.audio_volume = ctk.IntVar(value=75)
 
 		#
 		#	TITLE LABEL
@@ -211,22 +210,30 @@ class LabelMakr(ctk.CTk):
 		self.grid_rowconfigure(1, weight=5)
 
 		# logo at the top
-		self.title_lbl = ctk.CTkLabel(self, image=self.labelmakr_logo, text='')
+		self.title_lbl = ctk.CTkLabel(
+			self,
+			image=self.labelmakr_logo,
+			text=''
+		)
 		self.title_lbl.grid(row=0, column=0, padx=10, pady=(10, 5), sticky=tk.NW, columnspan=2)
 
 		# CORPUS BAR AT DA TOP
-		self.corpus_label = ctk.CTkLabel(self,
-										 text='Corpus Path' + ":", #NEEDSSTRING
-										 font=self.font)
+		self.corpus_label = ctk.CTkLabel(
+			self,
+			text='Corpus Path' + ":", #NEEDSSTRING
+			font=self.font
+		)
 		self.corpus_label.grid(row=0, column=1, padx=5, pady=(15, 0), sticky=tk.NE)
 		self.corpus_label_tt = CTkToolTip(self.corpus_label, delay=self.tt_delay, message='Path to the corpus you wish to process.', font=self.font) #NEEDSSTRING
 
-		self.corpus_entry = ctk.CTkEntry(self,
-										 corner_radius=5,
-										 font=self.font,
-										 state='normal',
-										 textvariable=self.corpus_path,
-										 width=350)
+		self.corpus_entry = ctk.CTkEntry(
+			self,
+			corner_radius=5,
+			font=self.font,
+			state='normal',
+			textvariable=self.corpus_path,
+			width=350
+		)
 		self.corpus_entry.grid(row=0, column=2, padx=(5, 0), pady=(15, 0), sticky=tk.NE)
 
 		def browse_corpus():
@@ -234,12 +241,14 @@ class LabelMakr(ctk.CTk):
 			if folder_path:
 				self.corpus_path.set(folder_path)
 
-		self.corpus_browse = ctk.CTkButton(self,
-										   text='Browse', #NEEDSSTRING
-										   command=lambda: browse_corpus(),
-										   compound=tk.LEFT,
-										   font=self.font,
-										   width=20)
+		self.corpus_browse = ctk.CTkButton(
+			self,
+			text='Browse', #NEEDSSTRING
+			command=lambda: browse_corpus(),
+			compound=tk.LEFT,
+			font=self.font,
+			width=20
+		)
 		self.corpus_browse.grid(row=0, column=3, padx=(0, 15), pady=(15, 0), sticky=tk.NE)
 
 		#
@@ -263,10 +272,12 @@ class LabelMakr(ctk.CTk):
 		self.tabs._segmented_button.configure(font=self.font)
 
 		# copyright label at the bottom of the screen
-		self.credits = ctk.CTkLabel(self, 
-									text=fxy('© tigermeat 2023-2026 | v2.0.0.dev'), 
-									text_color="gray50",
-									font=self.font_sm)
+		self.credits = ctk.CTkLabel(
+			self, 
+			text=fxy('© tigermeat 2023-2026 | v2.0.0.dev'), 
+			text_color="gray50",
+			font=self.font_sm
+		)
 		self.credits.grid(padx=5, pady=(0, 5), sticky=tk.EW, columnspan=4)
 
 		#
@@ -279,18 +290,12 @@ class LabelMakr(ctk.CTk):
 		self.tabs.tab(self.tab_ttl_1).grid_rowconfigure(1, weight=0)
 
 		# folder box
-		self.trans_file_select = CTkListbox(self.tabs.tab(self.tab_ttl_1),
-								   			multiple_selection=False,
-								   			font=self.font)
+		self.trans_file_select = CTkListbox(
+			self.tabs.tab(self.tab_ttl_1),
+			multiple_selection=False,
+			font=self.font
+		)
 		self.trans_file_select.bind("<<ListboxSelect>>", lambda: dummy())
-
-		# placing all label files into the thingymajig.
-		'''
-		self.file_list_index = {}
-		for i, file in enumerate(self.file_list):
-			self.file_sel.insert(i, file)
-			self.file_list_index[file] = i
-		'''
 
 		if self.debug:
 			for i, file in enumerate(["strawberry.wav", "blueberry.wav", "which_is_it.wav"]):
@@ -306,10 +311,11 @@ class LabelMakr(ctk.CTk):
 		self.editor_frame.grid_rowconfigure(1, weight=0)
 		self.editor_frame.grid_columnconfigure(0, weight=1)
 
-		self.text_box = ctk.CTkTextbox(self.editor_frame, 
-									   wrap='word',
-									   activate_scrollbars=True,
-									   font=self.font)
+		self.text_box = ctk.CTkTextbox(
+			self.editor_frame, 
+			wrap='word',
+			activate_scrollbars=True,
+			font=self.font)
 		self.text_box.grid(row=0, column=0, sticky=tk.NSEW)
 
 		if self.debug:
@@ -319,17 +325,12 @@ class LabelMakr(ctk.CTk):
 			self.text_box.insert(tk.END, "Tick. Ticktick. Tick.")
 			logger.debug("Displaying test lyrics.")
 
-
 		# AUDIO TIMELINE
 
 		self.bottom_box = ctk.CTkFrame(self.editor_frame, fg_color='transparent')
 		self.bottom_box.grid(row=1, column=0, pady=(15, 0), sticky=tk.EW)
-
 		self.bottom_box.grid_columnconfigure(0, weight=1)
 		self.bottom_box.grid_rowconfigure(1, weight=1)
-
-		self.audio_time = ctk.IntVar(value=0)
-		self.audio_volume = ctk.IntVar(value=75)
 
 		self.time_slider_frame = ctk.CTkFrame(self.bottom_box, fg_color='transparent')
 		self.time_slider_frame.grid(row=1, column=0, sticky=tk.EW)
@@ -339,25 +340,31 @@ class LabelMakr(ctk.CTk):
 		self.time_slider_frame.grid_columnconfigure(0, weight=1)
 		self.time_slider_frame.grid_columnconfigure(1, weight=1)
 
-		self.time_slider = ctk.CTkSlider(self.time_slider_frame,
-										 from_=0,
-										 to=100,
-										 variable=self.audio_time,
-										 orientation='horizontal')
+		self.time_slider = ctk.CTkSlider(
+			self.time_slider_frame,
+			from_=0,
+			to=100,
+			variable=self.audio_time,
+			orientation='horizontal'
+		)
 		self.time_slider.grid(row=0, column=0, columnspan=2, padx=10, sticky=tk.EW)
 
 		label_text_color = 'gray45'
 
-		self.audio_timeline = ctk.CTkLabel(self.time_slider_frame,
-										 text='Audio Timeline', #NEEDSSTRING
-										 font=self.font_sm,
-										 text_color=label_text_color)
+		self.audio_timeline = ctk.CTkLabel(
+			self.time_slider_frame,
+			text='Audio Timeline', #NEEDSSTRING
+			font=self.font_sm,
+			text_color=label_text_color
+		)
 		self.audio_timeline.grid(row=1, column=0, padx=(15, 0), sticky=tk.W)
 
-		self.duration_label = ctk.CTkLabel(self.time_slider_frame,
-										   text='0:00 / 0:37', #NEEDSSTRING
-										   font=self.font_sm,
-										   text_color=label_text_color)
+		self.duration_label = ctk.CTkLabel(
+			self.time_slider_frame,
+			text='0:00 / 0:37', #NEEDSSTRING #FIX THIS
+			font=self.font_sm,
+			text_color=label_text_color
+		)
 		self.duration_label.grid(row=1, column=1, padx=(0, 15), sticky=tk.E)
 
 		self.button_frame = ctk.CTkFrame(self.bottom_box, height=40)
@@ -368,38 +375,46 @@ class LabelMakr(ctk.CTk):
 		trans_button_width = 80
 
 		# play button
-		self.play_audio_btn = ctk.CTkButton(self.button_frame, 
-											image=self.play_ico,
-											text='',
-											width=trans_button_width,
-											command=lambda: self.play_audio())
+		self.play_audio_btn = ctk.CTkButton(
+			self.button_frame, 
+			image=self.play_ico,
+			text='',
+			width=trans_button_width,
+			command=lambda: self.play_audio() #FIX THIS
+		)
 		self.play_audio_btn.grid(row=0, column=0, padx=5, pady=5, sticky=tk.NSEW)
 		self.play_audio_btn_tt = CTkToolTip(self.play_audio_btn, delay=self.tt_delay, message=self.L('play'), font=self.font)
 
 		# pause/unpause button
-		self.pause_audio_btn = ctk.CTkButton(self.button_frame, 
-											image=self.pause_ico,
-											text='', 
-											width=trans_button_width, 
-											command=lambda: self.pause_audio())
+		self.pause_audio_btn = ctk.CTkButton(
+			self.button_frame, 
+			image=self.pause_ico,
+			text='', 
+			width=trans_button_width, 
+			command=lambda: self.pause_audio() #FIX THIS
+		)
 		self.pause_audio_btn.grid(row=0, column=1, padx=5, pady=5, sticky=tk.NSEW)
 		self.pause_audio_btn_tt = CTkToolTip(self.pause_audio_btn, delay=self.tt_delay, message=self.L('pause'), font=self.font)
 
 		# stop button
-		self.stop_audio_btn = ctk.CTkButton(self.button_frame, 
-											image=self.stop_ico,
-											text='',
-											width=trans_button_width,
-											command=lambda: self.stop_audio())
+		self.stop_audio_btn = ctk.CTkButton(
+			self.button_frame, 
+			image=self.stop_ico,
+			text='',
+			width=trans_button_width,
+			command=lambda: self.stop_audio() #FIX THIS
+		)
 		self.stop_audio_btn.grid(row=0, column=2, padx=5, pady=5, sticky=tk.NSEW)
 		self.stop_audio_btn_tt = CTkToolTip(self.stop_audio_btn, delay=self.tt_delay, message=self.L('stop'), font=self.font)
 
 		# save button
-		self.save_lbl_btn = ctk.CTkButton(self.button_frame,
-										  image=self.save_ico,
-										  text='',
-										  width=trans_button_width,
-										  command=lambda: self.save_label())
+		self.save_lbl_btn = ctk.CTkButton(
+			self.button_frame,
+			image=self.save_ico,
+			text='',
+			width=trans_button_width,
+			command=lambda: self.save_label() #FIX THIS
+		)
 		self.save_lbl_btn.grid(row=0, column=3, padx=5, pady=5, sticky=tk.NSEW)
 		self.save_lbl_btn_tt = CTkToolTip(self.save_lbl_btn, delay=self.tt_delay, message=self.L('save'), font=self.font)
 
@@ -410,17 +425,22 @@ class LabelMakr(ctk.CTk):
 		self.volume_frame.grid_columnconfigure(0, weight=0)
 		self.volume_frame.grid_rowconfigure(0, weight=1)
 
-		self.volume_label = ctk.CTkLabel(self.volume_frame,
-										 text='Volume', #NEEDSSTRING
-										 font=self.font_sm,
-										 text_color=label_text_color)
+		self.volume_label = ctk.CTkLabel(
+			self.volume_frame,
+			text='Volume', #NEEDSSTRING
+			font=self.font_sm,
+			text_color=label_text_color
+		)
 		self.volume_label.grid(row=0, column=0, padx=(0, 5), sticky=tk.W)
 
-		self.volume_slider = ctk.CTkSlider(self.volume_frame,
-										   from_=0,
-										   to=100,
-										   variable=self.audio_volume,
-										   orientation='horizontal')
+		self.volume_slider = ctk.CTkSlider(
+			self.volume_frame,
+			from_=0,
+			to=100,
+			variable=self.audio_volume,
+			orientation='horizontal',
+			#command=what #FIX THIS
+		)
 		self.volume_slider.grid(row=1, column=0, pady=(0, 5), sticky=tk.NSEW)
 
 		self.trans_option_frame = ctk.CTkFrame(
@@ -429,10 +449,12 @@ class LabelMakr(ctk.CTk):
 		)
 		self.trans_option_frame.grid(row=0, column=2, padx=5, pady=5, rowspan=999, sticky=tk.NSEW)
 
-		self.trans_label = ctk.CTkLabel(self.trans_option_frame,
-										text='Transcription Options', #NEEDSSTRING
-										font=self.font_sm,
-										text_color=label_text_color)
+		self.trans_label = ctk.CTkLabel(
+			self.trans_option_frame,
+			text='Transcription Options', #NEEDSSTRING
+			font=self.font_sm,
+			text_color=label_text_color
+		)
 		self.trans_label.grid(row=0, column=0, padx=10, pady=(10, 5), sticky=tk.NW)
 
 		self.language_label = ctk.CTkLabel(
@@ -1040,5 +1062,7 @@ if __name__ == "__main__":
 	@click.command(help='LabelMakr - An intuitive GUI tool to assist in labelling SVS datasets.')
 	@click.option('--debug', '-d', is_flag=True, type=bool, default=False, help='Display debugging messages.')
 	def main_wrapper(debug: bool):
+		if debug:
+			os.environ['LM_MODE'] = 'DEBUG'
 		main(debug)
 	main_wrapper()
