@@ -1,6 +1,5 @@
 import sys
 import os
-sys.path.append('.')
 from ftfy import fix_text as fxy
 import subprocess
 import re
@@ -12,17 +11,6 @@ from g2pk import G2p as G2pK
 import whisper
 from whisper.tokenizer import get_tokenizer
 
-def log(debug=False):
-	logger = logging.getLogger(__name__)
-
-	logging.basicConfig(format="| %(levelname)s | %(message)s | %(asctime)s |",
-						datefmt="%H:%M:%S")
-
-	if debug:
-		logger.setLevel(logging.DEBUG)
-	logger.setLevel(logging.INFO)
-
-	return logger
 
 class Transcriber(object):
 	def __init__(self, lang, wh_model):

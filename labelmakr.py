@@ -19,7 +19,7 @@ import customtkinter as ctk
 import tkinter as tk
 from ftfy import fix_text as fxy # unicode text all around fix
 import threading
-from PIL import Image
+from PIL import Image, ImageTk
 from CTkListbox import *
 from CTkToolTip import *
 from ezlocalizr import ezlocalizr
@@ -34,6 +34,7 @@ from modules.utils.labbu_func import labbu_func as labbu_func # for label editin
 from modules.utils import (
 	get_logger,
 	load_config,
+	get_os,
 	FontManager
 )
 from modules.utils.constants import (
@@ -43,6 +44,8 @@ from modules.utils.constants import (
 	MODELS
 )
 from modules.utils.audio import mixer_wrapper
+
+OS = get_os()
 
 ctk.set_default_color_theme(Path(ASSETS / 'ctk_tgm_theme.json'))
 ctk.deactivate_automatic_dpi_awareness()
@@ -61,6 +64,12 @@ class LabelMakr(ctk.CTk):
 			logger = get_logger(level="DEBUG")
 		else:
 			logger = get_logger()
+
+		os_ok = OS in ['linux', 'osx', 'win32']
+		assert OS in ['linux', 'osx', 'win32']
+		if debug:
+			logger.success(f'{OS} is supported by LabelMakr2.')
+
 		
 		# init global config, default if error
 		cfg_path = Path(ASSETS / 'cfg.yaml')
@@ -146,44 +155,51 @@ class LabelMakr(ctk.CTk):
 
 		# window config
 		self.title(self.L('app_ttl'))
-		self.geometry(f"{1050}x{550}")
+		#self.wm_class('labelmakr', self.L('app_ttl'))
+		self.geometry(f"{1150}x{600}")
 		self.resizable(height=True, width=True)
-		self.minsize(width=1050, height=550)
-		self.tt_delay = 1
-
-		# apparently trying to load an icon in linux breaks shit so. lawl.
-		if sys.platform == 'win32':
-			if Path(ASSETS / 'tgm.ico').exists():
-				self.wm_iconbitmap(Path(ASSETS / 'tgm.ico'))
+		self.minsize(width=1150, height=600)
+		self.tt_delay = 1			
 
 		#
 		#	GUI Image Initialization
 		#
 
 		if Path(ASSETS / 'labelmakr.png').exists():
-			self.labelmakr_logo = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'labelmakr.png')), size=(300,30))
+			self.labelmakr_logo = ctk.CTkImage(light_image=Image.open(ASSETS / 'labelmakr.png'), size=(300,30))
 		if Path(ASSETS / 'folder.png').exists():
-			self.folder_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'folder.png')))
+			self.folder_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'folder.png'))
 		if Path(ASSETS / 'trns.png').exists():
-			self.trns_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'trns.png')))
+			self.trns_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'trns.png'))
 		if Path(ASSETS / 'trns_edit.png').exists():
-			self.trns_edit_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'trns_edit.png')))
+			self.trns_edit_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'trns_edit.png'))
 		if Path(ASSETS / 'align.png').exists():
-			self.align_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'align.png')))
+			self.align_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'align.png'))
 		if Path(ASSETS / 'fix.png').exists():	
-			self.fix_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'fix.png')))
+			self.fix_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'fix.png'))
 		if Path(ASSETS / 'play.png').exists():
-			self.play_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'play.png')))
+			self.play_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'play.png'))
 		if Path(ASSETS / 'pause.png').exists():
-			self.pause_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'pause.png')))
+			self.pause_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'pause.png'))
 		if Path(ASSETS / 'stop.png').exists():
-			self.stop_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'stop.png')))
+			self.stop_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'stop.png'))
 		if Path(ASSETS / 'save.png').exists():
-			self.save_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'save.png')))
+			self.save_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'save.png'))
 		if Path(ASSETS / 'fastfw.png').exists():
-			self.next_ico = ctk.CTkImage(light_image=Image.open(Path(ASSETS / 'fastfw.png')))
+			self.next_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'fastfw.png'))
 
+		# ICON SETUP - still need to test on osx
+		if Path(ASSETS / 'tgm.ico').exists():
+			if OS == 'win32':
+				self.wm_iconbitmap(ASSETS / 'tgm.ico')
+			elif OS == 'linux':
+				if Path(ASSETS / 'tgm_logo.png').exists():
+					self.icontk = ImageTk.PhotoImage(Image.open(ASSETS / 'tgm_logo.png'))
+					self.iconphoto(True, self.icontk)
+
+		# Variables
 		self.corpus_path = ctk.StringVar(value="./corpus")
+		self.trans_lang_choice = ctk.StringVar(value='EN')
 
 		#
 		#	TITLE LABEL
@@ -196,13 +212,9 @@ class LabelMakr(ctk.CTk):
 
 		# logo at the top
 		self.title_lbl = ctk.CTkLabel(self, image=self.labelmakr_logo, text='')
-		self.title_lbl.grid(row=0, column=0, padx=5, pady=(10, 5), sticky=tk.NW, columnspan=2)
-
-		# whisper variables
-		self.trans_lang_choice = ctk.StringVar(value='EN')
+		self.title_lbl.grid(row=0, column=0, padx=10, pady=(10, 5), sticky=tk.NW, columnspan=2)
 
 		# CORPUS BAR AT DA TOP
-
 		self.corpus_label = ctk.CTkLabel(self,
 										 text='Corpus Path' + ":", #NEEDSSTRING
 										 font=self.font)
@@ -235,7 +247,7 @@ class LabelMakr(ctk.CTk):
 		#
 
 		self.tabs = ctk.CTkTabview(self)
-		self.tabs.grid(row=1, column=0, padx=5, pady=(0, 5), sticky=tk.NSEW, columnspan=4)
+		self.tabs.grid(row=1, column=0, padx=10, pady=(0, 5), sticky=tk.NSEW, columnspan=4)
 
 		self.tab_ttl_1 = self.L('tab_ttl_1')
 		self.tab_ttl_2 = self.L('tab_ttl_2')
@@ -252,9 +264,9 @@ class LabelMakr(ctk.CTk):
 
 		# copyright label at the bottom of the screen
 		self.credits = ctk.CTkLabel(self, 
-									text=fxy('© tigermeat 2023-2026 | v2.0.0'), 
+									text=fxy('© tigermeat 2023-2026 | v2.0.0.dev'), 
 									text_color="gray50",
-									font=self.font)
+									font=self.font_sm)
 		self.credits.grid(padx=5, pady=(0, 5), sticky=tk.EW, columnspan=4)
 
 		#
@@ -288,11 +300,11 @@ class LabelMakr(ctk.CTk):
 		self.trans_file_select.grid(row=0, column=0, rowspan=999, padx=5, pady=5, sticky=tk.NSEW)
 
 		self.editor_frame = ctk.CTkFrame(self.tabs.tab(self.tab_ttl_1))
-		self.editor_frame.grid(row=0, column=1, sticky=tk.EW)
+		self.editor_frame.grid(row=0, column=1, padx=5, pady=5, sticky=tk.NSEW)
 
-		self.editor_frame.grid_rowconfigure(0, weight=0)
-		self.editor_frame.grid_rowconfigure((1, 2), weight=3)
-		self.editor_frame.grid_columnconfigure(0, weight=0)
+		self.editor_frame.grid_rowconfigure(0, weight=1)
+		self.editor_frame.grid_rowconfigure(1, weight=0)
+		self.editor_frame.grid_columnconfigure(0, weight=1)
 
 		self.text_box = ctk.CTkTextbox(self.editor_frame, 
 									   wrap='word',
@@ -311,22 +323,28 @@ class LabelMakr(ctk.CTk):
 		# AUDIO TIMELINE
 
 		self.bottom_box = ctk.CTkFrame(self.editor_frame, fg_color='transparent')
-		self.bottom_box.grid(row=1, column=0, sticky=tk.S)
+		self.bottom_box.grid(row=1, column=0, pady=(15, 0), sticky=tk.EW)
+
+		self.bottom_box.grid_columnconfigure(0, weight=1)
+		self.bottom_box.grid_rowconfigure(1, weight=1)
 
 		self.audio_time = ctk.IntVar(value=0)
+		self.audio_volume = ctk.IntVar(value=75)
 
 		self.time_slider_frame = ctk.CTkFrame(self.bottom_box, fg_color='transparent')
-		self.time_slider_frame.grid(row=1, column=0, sticky=tk.S)
+		self.time_slider_frame.grid(row=1, column=0, sticky=tk.EW)
 
 		self.time_slider_frame.grid_rowconfigure(0, weight=3)
 		self.time_slider_frame.grid_rowconfigure(1, weight=0)
+		self.time_slider_frame.grid_columnconfigure(0, weight=1)
+		self.time_slider_frame.grid_columnconfigure(1, weight=1)
 
 		self.time_slider = ctk.CTkSlider(self.time_slider_frame,
 										 from_=0,
 										 to=100,
 										 variable=self.audio_time,
 										 orientation='horizontal')
-		self.time_slider.grid(row=0, column=0, padx=10, columnspan=2, sticky=tk.NSEW)
+		self.time_slider.grid(row=0, column=0, columnspan=2, padx=10, sticky=tk.EW)
 
 		label_text_color = 'gray45'
 
@@ -334,16 +352,16 @@ class LabelMakr(ctk.CTk):
 										 text='Audio Timeline', #NEEDSSTRING
 										 font=self.font_sm,
 										 text_color=label_text_color)
-		self.audio_timeline.grid(row=1, column=0, padx=(15, 0), sticky=tk.NW)
+		self.audio_timeline.grid(row=1, column=0, padx=(15, 0), sticky=tk.W)
 
 		self.duration_label = ctk.CTkLabel(self.time_slider_frame,
 										   text='0:00 / 0:37', #NEEDSSTRING
 										   font=self.font_sm,
 										   text_color=label_text_color)
-		self.duration_label.grid(row=1, column=1, padx=(0, 15), sticky=tk.SE)
+		self.duration_label.grid(row=1, column=1, padx=(0, 15), sticky=tk.E)
 
 		self.button_frame = ctk.CTkFrame(self.bottom_box, height=40)
-		self.button_frame.grid(row=2, column=0, sticky=tk.S)
+		self.button_frame.grid(row=2, column=0, columnspan=2, sticky='')
 
 		self.button_frame.grid_rowconfigure(0, weight=1)
 
@@ -385,40 +403,126 @@ class LabelMakr(ctk.CTk):
 		self.save_lbl_btn.grid(row=0, column=3, padx=5, pady=5, sticky=tk.NSEW)
 		self.save_lbl_btn_tt = CTkToolTip(self.save_lbl_btn, delay=self.tt_delay, message=self.L('save'), font=self.font)
 
-		# save & next button
-		self.save_next_btn = ctk.CTkButton(self.button_frame, 
-										  image=self.next_ico,
-										  text='',
-										  width=trans_button_width,
-										  command=lambda: self.save_and_next())
-		self.save_next_btn.grid(row=0, column=4, padx=5, pady=5, sticky=tk.NSEW)
-		self.save_next_btn_tt = CTkToolTip(self.save_next_btn, delay=self.tt_delay, message=self.L('next'), font=self.font)
+		#Volume slider
+		self.volume_frame = ctk.CTkFrame(self.button_frame, fg_color='transparent')
+		self.volume_frame.grid(row=0, column=4, padx=5, pady=5, sticky=tk.EW)
 
-		self.trans_option_frame = ctk.CTkFrame(self.tabs.tab(self.tab_ttl_1))
+		self.volume_frame.grid_columnconfigure(0, weight=0)
+		self.volume_frame.grid_rowconfigure(0, weight=1)
+
+		self.volume_label = ctk.CTkLabel(self.volume_frame,
+										 text='Volume', #NEEDSSTRING
+										 font=self.font_sm,
+										 text_color=label_text_color)
+		self.volume_label.grid(row=0, column=0, padx=(0, 5), sticky=tk.W)
+
+		self.volume_slider = ctk.CTkSlider(self.volume_frame,
+										   from_=0,
+										   to=100,
+										   variable=self.audio_volume,
+										   orientation='horizontal')
+		self.volume_slider.grid(row=1, column=0, pady=(0, 5), sticky=tk.NSEW)
+
+		self.trans_option_frame = ctk.CTkFrame(
+			self.tabs.tab(self.tab_ttl_1),
+			border_width=3,
+		)
 		self.trans_option_frame.grid(row=0, column=2, padx=5, pady=5, rowspan=999, sticky=tk.NSEW)
+
+		self.trans_label = ctk.CTkLabel(self.trans_option_frame,
+										text='Transcription Options', #NEEDSSTRING
+										font=self.font_sm,
+										text_color=label_text_color)
+		self.trans_label.grid(row=0, column=0, padx=10, pady=(10, 5), sticky=tk.NW)
+
+		self.language_label = ctk.CTkLabel(
+			self.trans_option_frame,
+			text=self.L('lang_choice'),
+			font=self.font_sm,
+			text_color=label_text_color
+		)
+		self.language_label.grid(row=1, column=0, padx=10, pady=5, sticky=tk.NW)
+
+		def language_combo_cb(choice):
+			if self.debug:	
+				logger.info(f'self.language_combo chose {choice}')
+
+		self.language_choice = ctk.StringVar(value='EN')
+
+		self.language_combo = ctk.CTkComboBox(
+			self.trans_option_frame,
+			values='',
+			command=language_combo_cb,
+			variable=self.language_choice,
+			font=self.font,
+			dropdown_font=self.font,
+			state='readonly',
+			justify='center'
+		)
+		self.language_combo.grid(row=2, column=0, columnspan=2, padx=15, pady=2.5, sticky=tk.EW)
+
+		if self.debug:
+			self.language_combo.configure(values=sorted(['EN', 'FR', 'JA', 'ZH', 'KO']))
+		
+		self.trans_model_label = ctk.CTkLabel(
+			self.trans_option_frame,
+			text=self.L('wh_model'),
+			font=self.font_sm,
+			text_color=label_text_color
+		)
+		self.trans_model_label.grid(row=3, column=0, padx=10, pady=2.5, sticky=tk.NW)
+
+		def trans_model_cb(choice):
+			if self.debug:
+				logger.info(f'self.trans_model_combo chose {choice}')
+		
+		self.trans_model_choice = ctk.StringVar(value='distil-whisper/distil-large-v3')
+		
+		self.trans_model_combo = ctk.CTkComboBox(
+			self.trans_option_frame,
+			values='',
+			command=trans_model_cb,
+			variable=self.trans_model_choice,
+			font=self.font_sm,
+			dropdown_font=self.font_sm,
+			state='readonly',
+			justify='center'
+		)
+		self.trans_model_combo.grid(row=4, column=0, columnspan=2, padx=15, pady=5, sticky=tk.EW)
 
 		trans_button_height = 50
 		# transcribe button
-		self.trns_btn = ctk.CTkButton(self.trans_option_frame,
-									  text=self.L('run_trns'),
-									  command=lambda: self.run_transcriber(),
-									  image=self.trns_ico,
-									  compound=tk.LEFT,
-									  font=self.font,
-									  height=trans_button_height)
-		self.trns_btn.grid(row=0, column=0, padx=5, pady=5, sticky=tk.EW)
+		self.trns_btn = ctk.CTkButton(
+			self.trans_option_frame,
+			text=self.L('run_trns'),
+			command=lambda: self.run_transcriber(),
+			image=self.trns_ico,
+			compound=tk.LEFT,
+			font=self.font,
+			height=trans_button_height
+		)
+		self.trns_btn.grid(row=9, column=0, padx=(10, 2.5), pady=(10, 5), sticky=tk.EW)
 		self.trns_btn_tt = CTkToolTip(self.trns_btn, delay=self.tt_delay, message=self.L('run_trns_tt'), font=self.font)
 
 		# transcription editor button
-		self.batch_trans_btn = ctk.CTkButton(self.trans_option_frame,
-									         text='Transcribe All', #NEEDSSTRING
-									         command=lambda: self.open_transcription_editor(),
-									   		 image=self.trns_edit_ico,
-									         compound=tk.LEFT,
-									         font=self.font,
-											 height=trans_button_height)
-		self.batch_trans_btn.grid(row=1, column=0, padx=5, pady=5, sticky=tk.EW)
+		self.batch_trans_btn = ctk.CTkButton(
+			self.trans_option_frame,
+			text='Transcribe All', #NEEDSSTRING
+			command=lambda: self.open_transcription_editor(),
+			image=self.trns_edit_ico,
+			compound=tk.LEFT,
+			font=self.font,
+			height=trans_button_height
+		)
+		self.batch_trans_btn.grid(row=9, column=1, padx=(2.5, 10), pady=(10, 5), sticky=tk.EW)
 		self.batch_trans_btn_tt = CTkToolTip(self.batch_trans_btn, delay=self.tt_delay, message=self.L('transcription_editor_tt'), font=self.font) #NEEDSSTRING
+
+
+
+
+
+
+
 
 		#
 		#	Alignment Tab GUI Codes

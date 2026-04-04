@@ -30,6 +30,18 @@ def load_config(path: Path) -> dict:
                 logger.error(f'Unable to open file {path}: \n {e} \n\n')
                 return output
 
+def get_os():
+    if sys.platform in ['linux', 'linux2']:
+        return 'linux'
+    elif sys.platform == 'darwin':
+        return 'osx'
+    elif sys.platform == 'win32':
+        return 'win32'
+    else:
+        logger.error(f'{sys.platform} is not supported by LabelMakr.')
+        return 
+        
+
 class FontManager:
     def __init__(self):
         pyglet.font.add_file(str(Path(ASSETS / 'PixelOperator.ttf')))
