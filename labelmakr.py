@@ -5,6 +5,8 @@ root_dir = Path(__file__).parent.parent.resolve()
 os.environ['PYTHONPATH'] = str(root_dir)
 sys.path.insert(0, str(root_dir))
 
+FONT_PATH = Path('./gui/assets/fonts')
+
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = 'hide'
 os.environ['LM_MODE'] = 'INFO' #doing this to keep logger consistent
 
@@ -25,9 +27,6 @@ from CTkListbox import *
 from CTkToolTip import *
 from ezlocalizr import ezlocalizr
 
-# function stuff
-import yaml
-
 # LabelMakr specific functions
 #import modules.utils.sofa_func # basically just a script with sofa inference
 import modules.utils.whisper_func as whisper_func # transcriber class is here
@@ -42,10 +41,10 @@ from modules.utils.constants import (
 	STRINGS,
 	CORPUS,
 	MODELS,
+	IMG,
 	TEMPDIR
 )
 from modules.utils.audio import mixer_wrapper
-from modules.utils.fontmanager import FontManager
 
 OS = get_os()
 
@@ -65,9 +64,8 @@ class LabelMakr(ctk.CTk):
 		logger = get_logger(level=os.environ['LM_MODE'])
 
 		os_ok = OS in ['linux', 'osx', 'win32']
-		assert OS in ['linux', 'osx', 'win32']
-		if debug:
-			logger.success(f'{OS} is supported by LabelMakr2.')
+		assert os_ok, logger.error(f'{OS} is not supported by LabelMakr2.')
+		logger.debug(f'{OS} is supported by LabelMakr2.')
 		
 		# GUI config
 		cfg_path = Path(ASSETS / 'cfg.yaml')
@@ -84,14 +82,6 @@ class LabelMakr(ctk.CTk):
 			}
 			logger.warning(f"Unable to open config {str(cfg_path)}, using default dictionary: \n {self.config}")
 
-		if Path(ASSETS / 'cfg.yaml').exists():
-			with open(Path(ASSETS / 'cfg.yaml'), 'r', encoding='utf-8') as c:
-				try:
-					self.cfg.update(yaml.safe_load(c))
-					c.close()
-				except yaml.YAMLError as exc:
-					logger.warning(f'Cannot load config file, using default dictionary.')
-
 		# init variables from config
 		self.clang = ctk.StringVar(value=self.cfg['disp_lang'])
 		self.inf_wh_model = ctk.StringVar(value=self.cfg['whisper_model'])
@@ -99,6 +89,34 @@ class LabelMakr(ctk.CTk):
 		self.dark_mode = ctk.BooleanVar(value=self.cfg['dark_mode'])	
 		self.force_cpu = ctk.BooleanVar(value=self.cfg['force_cpu'])
 
+		#
+		#	GUI Image Initialization
+		#
+
+		if Path(IMG / 'labelmakr.png').exists():
+			self.labelmakr_logo = ctk.CTkImage(light_image=Image.open(IMG / 'labelmakr.png'), size=(300,30))
+		if Path(IMG / 'folder.png').exists():
+			self.folder_ico = ctk.CTkImage(light_image=Image.open(IMG / 'folder.png'))
+		if Path(IMG / 'trns.png').exists():
+			self.trns_ico = ctk.CTkImage(light_image=Image.open(IMG / 'trns.png'))
+		if Path(IMG / 'trns_edit.png').exists():
+			self.trns_edit_ico = ctk.CTkImage(light_image=Image.open(IMG / 'trns_edit.png'))
+		if Path(IMG / 'align.png').exists():
+			self.align_ico = ctk.CTkImage(light_image=Image.open(IMG / 'align.png'))
+		if Path(IMG / 'fix.png').exists():	
+			self.fix_ico = ctk.CTkImage(light_image=Image.open(IMG / 'fix.png'))
+		if Path(IMG / 'play.png').exists():
+			self.play_ico = ctk.CTkImage(light_image=Image.open(IMG / 'play.png'))
+		if Path(IMG / 'pause.png').exists():
+			self.pause_ico = ctk.CTkImage(light_image=Image.open(IMG / 'pause.png'))
+		if Path(IMG / 'stop.png').exists():
+			self.stop_ico = ctk.CTkImage(light_image=Image.open(IMG / 'stop.png'))
+		if Path(IMG / 'save.png').exists():
+			self.save_ico = ctk.CTkImage(light_image=Image.open(IMG / 'save.png'))
+		if Path(IMG / 'fastfw.png').exists():
+			self.next_ico = ctk.CTkImage(light_image=Image.open(IMG / 'fastfw.png'))
+
+		#FIX THIS
 		# init SOFA models
 		self.sofa_models = {'models':{}}
 		for model in glob(str(MODELS / '*')):
@@ -128,8 +146,9 @@ class LabelMakr(ctk.CTk):
 							string_path=STRINGS,
 							default_lang='en_US')
 
-		self.FontManager = FontManager()
-		self.font, self.font_sm = self.FontManager.load_font()
+		self.font = ctk.CTkFont(family='monospace', size=12)
+		self.font_sm = ctk.CTkFont(family='monospace', size=10)
+
 		logger.debug(f'Current font loaded is {self.font.cget('family')}')
 
 		# init labbu for label fixes
@@ -152,45 +171,17 @@ class LabelMakr(ctk.CTk):
 
 		# window config
 		self.title(self.L('app_ttl'))
-
 		self.geometry(f"{1150}x{600}")
 		self.resizable(height=True, width=True)
 		self.minsize(width=1150, height=600)
-
-		#
-		#	GUI Image Initialization
-		#
-
-		if Path(ASSETS / 'labelmakr.png').exists():
-			self.labelmakr_logo = ctk.CTkImage(light_image=Image.open(ASSETS / 'labelmakr.png'), size=(300,30))
-		if Path(ASSETS / 'folder.png').exists():
-			self.folder_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'folder.png'))
-		if Path(ASSETS / 'trns.png').exists():
-			self.trns_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'trns.png'))
-		if Path(ASSETS / 'trns_edit.png').exists():
-			self.trns_edit_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'trns_edit.png'))
-		if Path(ASSETS / 'align.png').exists():
-			self.align_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'align.png'))
-		if Path(ASSETS / 'fix.png').exists():	
-			self.fix_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'fix.png'))
-		if Path(ASSETS / 'play.png').exists():
-			self.play_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'play.png'))
-		if Path(ASSETS / 'pause.png').exists():
-			self.pause_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'pause.png'))
-		if Path(ASSETS / 'stop.png').exists():
-			self.stop_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'stop.png'))
-		if Path(ASSETS / 'save.png').exists():
-			self.save_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'save.png'))
-		if Path(ASSETS / 'fastfw.png').exists():
-			self.next_ico = ctk.CTkImage(light_image=Image.open(ASSETS / 'fastfw.png'))
 
 		# ICON SETUP - still need to test on osx
 		if Path(ASSETS / 'tgm.ico').exists():
 			if OS == 'win32':
 				self.wm_iconbitmap(ASSETS / 'tgm.ico')
 			elif OS == 'linux':
-				if Path(ASSETS / 'tgm_logo.png').exists():
-					self.icontk = ImageTk.PhotoImage(Image.open(ASSETS / 'tgm_logo.png'))
+				if Path(IMG / 'tgm_logo.png').exists():
+					self.icontk = ImageTk.PhotoImage(Image.open(IMG / 'tgm_logo.png'))
 					self.iconphoto(True, self.icontk)
 
 		# Variables

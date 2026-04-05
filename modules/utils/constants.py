@@ -10,6 +10,7 @@ ASSETS = Path('./gui/assets')
 STRINGS = Path('./gui/strings')
 CORPUS = Path('./corpus')
 MODELS = Path('./models')
+IMG = Path('./gui/assets/img')
 
 TEMPDIR = Path(tempfile.gettempdir())
 
