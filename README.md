@@ -1,3 +1,5 @@
+# LabelMakr2's developement has been moved [here](https://github.com/mrtigermeat/LabelMakr2/tree/main).
+
 <p align="center">
   <img src="https://github.com/spicytigermeat/LabelMakr/blob/v030/assets/labelmakr.png" alt="LabelMakr 🛋️">
 </p>
